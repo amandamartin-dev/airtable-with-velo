@@ -1,0 +1,122 @@
+import { getAirtableData, createOrUpdateData, deleteAirtableData } from 'backend/airtableFunctions'
+import { useScope } from 'repeater-scope';
+
+$w.onReady(async function () {
+    $w('#myExpenses').data = []
+
+    await getExpenses()
+
+    $w("#inputTotal, #inputDescription").onKeyPress((event) => {
+        const { $item } = useScope(event)
+        $item('#btnSaveEdits').show()
+    });
+
+});
+
+function getExpenses() {
+    getAirtableData().then(results =>{
+        if(results){
+            const newArray = results.map(({
+                id: _id,
+                ...rest
+            }) => ({
+                _id,
+                ...rest
+            }))
+             $w('#myExpenses').data = newArray;
+            $w('#myExpenses').onItemReady(($item, itemData, index) => {
+                $item("#updatedDate").text = itemData.fields.Date;
+                $item("#status").text = itemData.fields.Status;
+                $item("#inputDescription").value = itemData.fields.Description
+                $item("#inputTotal").value = itemData.fields.Total
+                
+            })
+            $w('#myExpenses').expand();
+        }else{
+            $w('#msgError').show()
+        }
+    })
+        
+}
+
+/**
+*	Adds an event handler that runs when the element is clicked.
+	[Read more](https://www.wix.com/corvid/reference/$w.ClickableMixin.html#onClick)
+*	 @param {$w.MouseEvent} event
+*/
+export function btnSaveEdits_click(event) {
+ const { $item, itemData, index, data } = useScope(event);
+    let id = itemData._id
+    let total = $item('#inputTotal').value
+    let description = $item('#inputDescription').value
+    let date = new Date()
+    let formattedDate = date.toLocaleDateString()
+
+    let airtableObj = {
+        "fields": {
+            "Description": description,
+            "Date": formattedDate,
+            "Total": Number(total)
+
+        }
+    };
+    let action = "update"
+    createOrUpdateData(airtableObj, action, id).then((results) => {
+        if (results === true) {
+            $w('#msgError').hide()
+            $item('#btnSaveEdits').hide()
+            getExpenses()
+        } else {
+            $w('#msgError').show()
+        }
+    }).catch(() => {});
+
+}
+
+/**
+*	Adds an event handler that runs when the element is clicked.
+	[Read more](https://www.wix.com/corvid/reference/$w.ClickableMixin.html#onClick)
+*	 @param {$w.MouseEvent} event
+*/
+export function btnDelete_click(event) {
+let id = event.context.itemId
+    deleteAirtableData(id).then((results) => {
+        if (results === true) {
+            $w('#msgError').hide()
+            getExpenses()
+        } else {
+            $w('#msgError').show()
+        }
+    }).catch(() => {});
+
+}
+
+/**
+*	Adds an event handler that runs when the element is clicked.
+	[Read more](https://www.wix.com/corvid/reference/$w.ClickableMixin.html#onClick)
+*	 @param {$w.MouseEvent} event
+*/
+export function btnSubmit_click(event) {
+let date = new Date()
+    let formattedDate = date.toLocaleDateString()
+    let description = $w('#inputNewDesc').value
+    let total = $w('#inputNewTotal').value
+    let airtableObj = {
+        "fields": {
+            "Description": description,
+            "Date": formattedDate,
+            "Total": Number(total)
+        }
+    };
+    let action = "create"
+    createOrUpdateData(airtableObj, action).then((results) => {
+        if(results === true){
+        $w('#msgError').hide()
+        setTimeout(() => {
+            getExpenses()
+        }, 1000)
+        }
+    }).catch(() => {
+        $w('#msgError').show()
+    });
+}
