@@ -1,0 +1,85 @@
+import { fetch } from 'wix-fetch';
+import wixSecretsBackend from 'wix-secrets-backend';
+import { currentMember } from 'wix-members-backend';
+
+export async function getAirtableData() {
+    const key = await wixSecretsBackend.getSecret("airtable_key")
+    const appID = await wixSecretsBackend.getSecret("airtable_appID")
+    let options = {
+        fieldsets: ['FULL']
+    }
+
+    const member = await currentMember.getMember(options)
+    const email = member.loginEmail
+
+    return fetch("https://api.airtable.com/v0/" + appID + "/Expenses/?api_key=" + key + "&filterByFormula=%7BEmail%7D+%3D+%22" + email + "%22", { "method": "get" })
+        .then((httpResponse) => {
+            if (httpResponse.ok) {
+                return httpResponse.json();
+            } else {
+                return Promise.reject("Fetch did not succeed");
+            }
+        })
+        .then(json => json.records)
+        .catch(err => console.log(err));
+}
+
+export async function createOrUpdateData(airtableObj, action, id = 0) {
+    const key = await wixSecretsBackend.getSecret("airtable_key")
+    const appID = await wixSecretsBackend.getSecret("airtable_appID")
+    let urlEnd = ''
+    let method = ''
+    if (action === "create") {
+        urlEnd = "?api_key=" + key
+        method = "POST"
+        let options = {
+            fieldsets: ['FULL']
+        }
+        const member = await currentMember.getMember(options)
+        const email = member.loginEmail
+
+        airtableObj['fields'].Email = email
+        airtableObj['fields'].Status = "Submitted"
+
+    } else if (action == "update") {
+        urlEnd = id + "?api_key=" + key
+        method = "PATCH"
+
+    }
+
+    return fetch("https://api.airtable.com/v0/" + appID + "/Expenses/" + urlEnd, {
+            "method": method,
+            "headers": {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            "body": JSON.stringify(airtableObj)
+        })
+        .then((httpResponse) => {
+            if (httpResponse.ok) {
+                return { success: true };
+            } else {
+
+                return Promise.reject("Fetch did not succeed" + httpResponse.status);
+            }
+        })
+        .then(results => results.success)
+        .catch(err => console.error(err));
+
+}
+
+export async function deleteAirtableData(id){
+    const key = await wixSecretsBackend.getSecret("airtable_key")
+    const appID = await wixSecretsBackend.getSecret("airtable_appID")
+
+    return fetch("https://api.airtable.com/v0/" + appID + "/Expenses/" + id + "?api_key=" + key, { "method": "DELETE" })
+        .then((httpResponse) => {
+            if (httpResponse.ok) {
+                return { success: true };
+            } else {
+                return Promise.reject("Fetch did not succeed" + httpResponse.status);
+            }
+        })
+        .then(results => results.success)
+        .catch(err => console.error(err));
+}
